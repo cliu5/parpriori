@@ -109,7 +109,7 @@ sortedConfidence xs = (sortBy (\(_, _, a) (_, _, b) -> compare b a) xs)
 
 getConfidencePar :: [[Text]] -> Map [Text] Double -> Double -> [([Text], [Text], Double)]
 getConfidencePar [] _ _  = []
-getConfidencePar xs support_map minconf = Prelude.concat (parMap (rpar) (\x -> (getConfidence' x support_map minconf)) xs)
+getConfidencePar xs support_map minconf = Prelude.concat (parMap rpar (\x -> (getConfidence' x support_map minconf)) xs)
 
 getConfidence :: [[Text]] -> Map [Text] Double -> Double -> [([Text], [Text], Double)]
 getConfidence [] _ _  = []
