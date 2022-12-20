@@ -1,4 +1,4 @@
-import Control.Parallel.Strategies(parList, rseq, Eval, runEval, parListChunk)
+import Control.Parallel.Strategies(parList, rseq, rpar, parMap, rdeepseq, Eval, runEval, parListChunk, using)
 import System.Environment(getArgs, getProgName)
 import System.Exit(die)
 import Data.Text as T
@@ -23,7 +23,7 @@ main = do
                 iSets = (itemSets l1 items dataLen minsup)
                 support_map = (getSupportMap iSets dataLen)
                 alist = Prelude.map (\(x, _) -> x) iSets
-                correlations = sortedConfidence (getConfidence alist (M.fromList support_map) minconf)
+                correlations = sortedConfidence (getConfidencePar alist (M.fromList support_map) minconf)
             -- mapM_ (debugL1) l1
             -- putStrLn " "
             -- mapM_ (debugFreqItems) iSets
@@ -61,7 +61,7 @@ itemSets :: [([Text], Int)] -> [[Text]] -> Int -> Double -> [([Text], Int)]
 itemSets [] _ _ _ = []
 itemSets prev_L_items items datalen minsup = prev_L_items ++ (itemSets l_items items datalen minsup)
     where
-        c_items = aprioriGen prev_L_items
+        c_items = aprioriGenPar prev_L_items
         newItems = getNewItems (c_items) items
         l_items = Prelude.filter (\(_, cnt) -> (getSup cnt datalen) >= minsup) newItems
 
@@ -74,11 +74,14 @@ getNewItems citems baskets =
             validCombos = Prelude.map (\(_,i) -> i) (Prelude.filter (\(b, i) -> (Prelude.all (`Prelude.elem` b) i)) combos)
 
 aprioriGen :: [([Text], Int)] -> [[Text]]
-aprioriGen items = S.toList(S.fromList([ L.sort (p ++ [(L.last q)]) | p <- prev_L_items, q <- prev_L_items, L.take (L.length p - 1) p == L.take (L.length q - 1) q, (L.last p) /= (L.last q)]))
+aprioriGen items = removeDups ([L.sort (p ++ [(L.last q)]) | p <- prev_L_items, q <- prev_L_items, L.take (L.length p - 1) p == L.take (L.length q - 1) q, (L.last p) /= (L.last q)])
                   where prev_L_items = Prelude.map (\(x, _) -> x) items
 
+removeDups :: [[Text]] -> [[Text]]
+removeDups xs = S.toList(S.fromList(xs))
+
 aprioriGenPar :: [([Text], Int)] -> [[Text]]
-aprioriGenPar items = S.toList(S.fromList(runEval $ parList (rseq . sort) [(p ++ [(L.last q)]) | p <- prev_L_items, q <- prev_L_items, L.take (L.length p - 1) p == L.take (L.length q - 1) q, (L.last p) /= (L.last q)]))
+aprioriGenPar items = removeDups (runEval $ parList (rseq . sort) [(p ++ [(L.last q)]) | p <- prev_L_items, q <- prev_L_items, L.take (L.length p - 1) p == L.take (L.length q - 1) q, (L.last p) /= (L.last q)])
                   where prev_L_items = Prelude.map (\(x, _) -> x) items
 
 {--
@@ -103,6 +106,10 @@ minconf = fromIntegral 0
 --}
 sortedConfidence :: [([Text], [Text], Double)] -> [([Text], [Text], Double)]
 sortedConfidence xs = (sortBy (\(_, _, a) (_, _, b) -> compare b a) xs)
+
+getConfidencePar :: [[Text]] -> Map [Text] Double -> Double -> [([Text], [Text], Double)]
+getConfidencePar [] _ _  = []
+getConfidencePar xs support_map minconf = Prelude.concat (parMap (rpar) (\x -> (getConfidence' x support_map minconf)) xs)
 
 getConfidence :: [[Text]] -> Map [Text] Double -> Double -> [([Text], [Text], Double)]
 getConfidence [] _ _  = []
