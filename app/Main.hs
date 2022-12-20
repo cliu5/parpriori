@@ -13,7 +13,7 @@ main = do
       case args of
          [filename, minsupS, minconfS] -> do
             contents <- readFile filename
-            let items = preprocess (T.lines (T.pack contents))
+            let items = preprocess (T.lines (strip $ T.pack contents))
                 minsup = read minsupS :: Double
                 minconf = read minconfS :: Double
                 wordLst = Prelude.concat items
@@ -106,11 +106,14 @@ sortedConfidence xs = (sortBy (\(_, _, a) (_, _, b) -> compare b a) xs)
 
 getConfidence :: [[Text]] -> Map [Text] Double -> Double -> [([Text], [Text], Double)]
 getConfidence [] _ _  = []
-getConfidence ([]:_) _ _  = []
-getConfidence ([_]:xs) support_map minconf = getConfidence xs support_map minconf {--skip over single element ones--}
-getConfidence ((a:ab):xs) support_map minconf
-    | isNothing numerator = getConfidence xs support_map minconf
-    | otherwise = (extractCor [a] ab support_map (fromJust numerator) minconf) ++ (getConfidence xs support_map minconf)
+getConfidence xs support_map minconf = xs >>= (\x -> (getConfidence' x support_map minconf))
+
+getConfidence' :: [Text] -> Map [Text] Double -> Double -> [([Text], [Text], Double)]
+getConfidence' [] _ _ = []
+getConfidence' [_] _ _ = []
+getConfidence' (a:ab) support_map minconf
+    | isNothing numerator = []
+    | otherwise = extractCor [a] ab support_map (fromJust numerator) minconf
     where numerator = M.lookup (a:ab) support_map
 
 extractCor :: [Text] -> [Text] -> Map [Text] Double -> Double -> Double -> [([Text], [Text], Double)]
