@@ -23,7 +23,7 @@ main = do
                 iSets = (itemSets l1 items dataLen minsup)
                 support_map = (getSupportMap iSets dataLen)
                 alist = Prelude.map (\(x, _) -> x) iSets
-                correlations = sortedConfidence (getConfidence alist (M.fromList support_map) minconf)
+                correlations = sortedConfidence (getConfidencePar alist (M.fromList support_map) minconf)
             -- mapM_ (debugL1) l1
             -- putStrLn " "
             -- mapM_ (debugFreqItems) iSets
@@ -61,13 +61,16 @@ itemSets :: [([Text], Int)] -> [[Text]] -> Int -> Double -> [([Text], Int)]
 itemSets [] _ _ _ = []
 itemSets prev_L_items items datalen minsup = prev_L_items ++ (itemSets l_items items datalen minsup)
     where
-        c_items = aprioriGen prev_L_items
-        newItems = prune (c_items) items
-        l_items = Prelude.filter (\(_, cnt) -> (getSup cnt datalen) >= minsup) newItems
+        c_items = aprioriGenPar prev_L_items
+        l_items = Prelude.filter (\(_, cnt) -> (getSup cnt datalen) >= minsup) (prunePar (c_items) items)
 
 prune :: [[Text]] -> [[Text]] -> [([Text], Int)]
 prune [] [] = []
-prune citems baskets = parMap rpar (\item -> (item, supCount item baskets)) citems
+prune citems baskets = Prelude.map (\item -> (item, supCount item baskets)) citems
+
+prunePar :: [[Text]] -> [[Text]] -> [([Text], Int)]
+prunePar [] [] = []
+prunePar citems baskets = parMap rpar (\item -> (item, supCount item baskets)) citems
 
 supCount :: [Text] -> [[Text]] -> Int
 supCount _ [] = 0
