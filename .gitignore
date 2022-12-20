@@ -1,3 +1,5 @@
+.stack-work/
 dist-newstyle
 threadscope.macOS-latest.ghc-9.2.2
 *.eventlog
+stack.yaml.lock

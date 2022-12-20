@@ -24,10 +24,10 @@ main = do
                 support_map = (getSupportMap iSets dataLen)
                 alist = Prelude.map (\(x, _) -> x) iSets
                 correlations = sortedConfidence (getConfidence alist (M.fromList support_map) minconf)
-            mapM_ (debugL1) l1
-            putStrLn " "
-            mapM_ (debugFreqItems) iSets
-            putStrLn " "
+            -- mapM_ (debugL1) l1
+            -- putStrLn " "
+            -- mapM_ (debugFreqItems) iSets
+            -- putStrLn " "
             mapM_ (debugCor) correlations
          _ -> do
             pn <- getProgName
@@ -61,7 +61,7 @@ itemSets :: [([Text], Int)] -> [[Text]] -> Int -> Double -> [([Text], Int)]
 itemSets [] _ _ _ = []
 itemSets prev_L_items items datalen minsup = prev_L_items ++ (itemSets l_items items datalen minsup)
     where
-        c_items = aprioriGenPar prev_L_items
+        c_items = aprioriGen prev_L_items
         newItems = getNewItems (c_items) items
         l_items = Prelude.filter (\(_, cnt) -> (getSup cnt datalen) >= minsup) newItems
 
@@ -118,7 +118,7 @@ extractCor _ [] _ _ _ = []
 extractCor [] _ _ _ _ = []
 extractCor lfs (r:rhs) support_map numerator minconf
     | isNothing lsup = (extractCor (lfs ++ [r]) rhs support_map numerator minconf)
-    | conf >= minconf = (lfs, rhs, conf) : (extractCor (lfs ++ [r]) rhs support_map numerator minconf)
+    | conf >= minconf = (lfs, (r:rhs), conf) : (extractCor (lfs ++ [r]) rhs support_map numerator minconf)
     | otherwise = (extractCor (lfs ++ [r]) rhs support_map numerator minconf)
     where 
         lsup = M.lookup lfs support_map
