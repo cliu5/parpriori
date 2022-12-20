@@ -1,4 +1,4 @@
-import Control.Parallel.Strategies(parListChunk, rseq)
+import Control.Parallel.Strategies(parList, rseq, Eval, runEval, parListChunk)
 import System.Environment(getArgs, getProgName)
 import System.Exit(die)
 import Data.Text as T
@@ -61,8 +61,8 @@ itemSets :: [([Text], Int)] -> [[Text]] -> Int -> Double -> [([Text], Int)]
 itemSets [] _ _ _ = []
 itemSets prev_L_items items datalen minsup = prev_L_items ++ (itemSets l_items items datalen minsup)
     where
-        c_items = aprioriGen prev_L_items
-        newItems = getNewItems c_items items
+        c_items = aprioriGenPar prev_L_items
+        newItems = getNewItems (c_items) items
         l_items = Prelude.filter (\(_, cnt) -> (getSup cnt datalen) >= minsup) newItems
 
 getNewItems :: [[Text]] -> [[Text]] -> [([Text], Int)]
@@ -75,6 +75,10 @@ getNewItems citems baskets =
 
 aprioriGen :: [([Text], Int)] -> [[Text]]
 aprioriGen items = S.toList(S.fromList([ L.sort (p ++ [(L.last q)]) | p <- prev_L_items, q <- prev_L_items, L.take (L.length p - 1) p == L.take (L.length q - 1) q, (L.last p) /= (L.last q)]))
+                  where prev_L_items = Prelude.map (\(x, _) -> x) items
+
+aprioriGenPar :: [([Text], Int)] -> [[Text]]
+aprioriGenPar items = S.toList(S.fromList(runEval $ parList (rseq . sort) [(p ++ [(L.last q)]) | p <- prev_L_items, q <- prev_L_items, L.take (L.length p - 1) p == L.take (L.length q - 1) q, (L.last p) /= (L.last q)]))
                   where prev_L_items = Prelude.map (\(x, _) -> x) items
 
 {--
