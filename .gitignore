@@ -1,5 +1,7 @@
 .stack-work/
+.vscode/
 dist-newstyle
 threadscope.macOS-latest.ghc-9.2.2
 *.eventlog
 stack.yaml.lock
+.DS_STORE

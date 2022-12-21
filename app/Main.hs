@@ -11,7 +11,25 @@ main :: IO ()
 main = do 
       args <- getArgs
       case args of
-         [filename, minsupS, minconfS] -> do
+         [filename, minsupS, minconfS, "par"] -> do
+            contents <- readFile filename
+            let items = preprocess (T.lines (strip $ T.pack contents))
+                minsup = read minsupS :: Double
+                minconf = read minconfS :: Double
+                dataLen = (Prelude.length items)
+                --loaded argument data
+                wordLst = Prelude.concat items
+                counts = M.toList (M.fromListWith (+) (Prelude.map (\x -> (x, 1)) wordLst))
+                l1 = Prelude.map (\(a, b) -> ([a], b)) (Prelude.filter (\(_, cnt) -> (getSup cnt dataLen) >= minsup) counts)
+                --construct L1 itemset
+                iSets = (itemSetsPar l1 items dataLen minsup)
+                --obtained Lk itemsets
+                support_map = (getSupportMap iSets dataLen)
+                --generate support map
+                correlations = sortedConfidence (getConfidencePar (Prelude.map (\(x, _) -> x) iSets) (M.fromList support_map) minconf)
+                --obtain correlations
+            mapM_ (printCor) correlations
+         [filename, minsupS, minconfS, "seq"] -> do
             contents <- readFile filename
             let items = preprocess (T.lines (strip $ T.pack contents))
                 minsup = read minsupS :: Double
@@ -26,12 +44,12 @@ main = do
                 --obtained Lk itemsets
                 support_map = (getSupportMap iSets dataLen)
                 --generate support map
-                correlations = sortedConfidence (getConfidencePar (Prelude.map (\(x, _) -> x) iSets) (M.fromList support_map) minconf)
+                correlations = sortedConfidence (getConfidence (Prelude.map (\(x, _) -> x) iSets) (M.fromList support_map) minconf)
                 --obtain correlations
             mapM_ (printCor) correlations
          _ -> do
             pn <- getProgName
-            die $ "Usage: "++pn++" <filename> <minsup> <minconf>"
+            die $ "Usage: "++pn++" <filename> <minsup> <minconf> <seq/par>"
 
 ---HELPER DATA PREPROCESSING FNS---
 printCor :: ([Text], [Text], Double) -> IO()
@@ -55,9 +73,15 @@ itemSets :: [([Text], Int)] -> [[Text]] -> Int -> Double -> [([Text], Int)]
 itemSets [] _ _ _ = []
 itemSets prev_L_items items datalen minsup = prev_L_items ++ (itemSets l_items items datalen minsup)
     where
-        c_items = aprioriGenPar prev_L_items
-        l_items = Prelude.filter (\(_, cnt) -> (getSup cnt datalen) >= minsup) (prunePar (c_items) items)
+        c_items = aprioriGen prev_L_items
+        l_items = Prelude.filter (\(_, cnt) -> (getSup cnt datalen) >= minsup) (prune (c_items) items)
 
+itemSetsPar :: [([Text], Int)] -> [[Text]] -> Int -> Double -> [([Text], Int)]
+itemSetsPar [] _ _ _ = []
+itemSetsPar prev_L_items items datalen minsup = prev_L_items ++ (itemSetsPar l_items items datalen minsup)
+    where
+        c_items = aprioriGenPar prev_L_items
+        l_items = Prelude.filter (\(_, cnt) -> (getSup cnt datalen) >= minsup) (prunePar (c_items) items)  
 
 --  PRUNING    --
 prune :: [[Text]] -> [[Text]] -> [([Text], Int)]
