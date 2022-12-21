@@ -1,4 +1,4 @@
-import Control.Parallel.Strategies(parList, rseq, rpar, parMap, rdeepseq, Eval, runEval, parListChunk, using)
+import Control.Parallel.Strategies(rpar, parMap)
 import System.Environment(getArgs, getProgName)
 import System.Exit(die)
 import Data.Text as T
@@ -28,7 +28,7 @@ main = do
                 --generate support map
                 correlations = sortedConfidence (getConfidencePar (Prelude.map (\(x, _) -> x) iSets) (M.fromList support_map) minconf)
                 --obtain correlations
-            mapM_ (debugCor) correlations
+            mapM_ (printCor) correlations
          _ -> do
             pn <- getProgName
             die $ "Usage: "++pn++" <filename> <minsup> <minconf>"
@@ -56,7 +56,7 @@ itemSets [] _ _ _ = []
 itemSets prev_L_items items datalen minsup = prev_L_items ++ (itemSets l_items items datalen minsup)
     where
         c_items = aprioriGenPar prev_L_items
-        l_items = Prelude.filter (\(_, cnt) -> (getSup cnt datalen) >= minsup) (prune (c_items) items)
+        l_items = Prelude.filter (\(_, cnt) -> (getSup cnt datalen) >= minsup) (prunePar (c_items) items)
 
 
 --  PRUNING    --
