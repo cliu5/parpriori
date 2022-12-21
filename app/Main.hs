@@ -16,54 +16,50 @@ main = do
             let items = preprocess (T.lines (strip $ T.pack contents))
                 minsup = read minsupS :: Double
                 minconf = read minconfS :: Double
+                dataLen = (Prelude.length items)
+                --loaded argument data
                 wordLst = Prelude.concat items
                 counts = M.toList (M.fromListWith (+) (Prelude.map (\x -> (x, 1)) wordLst))
-                dataLen = (Prelude.length items) -- dataLen used for minsup and conf calulations
                 l1 = Prelude.map (\(a, b) -> ([a], b)) (Prelude.filter (\(_, cnt) -> (getSup cnt dataLen) >= minsup) counts)
+                --construct L1 itemset
                 iSets = (itemSets l1 items dataLen minsup)
+                --obtained Lk itemsets
                 support_map = (getSupportMap iSets dataLen)
-                alist = Prelude.map (\(x, _) -> x) iSets
-                correlations = sortedConfidence (getConfidencePar alist (M.fromList support_map) minconf)
-            -- mapM_ (debugL1) l1
-            -- putStrLn " "
-            -- mapM_ (debugFreqItems) iSets
-            -- putStrLn " "
+                --generate support map
+                correlations = sortedConfidence (getConfidencePar (Prelude.map (\(x, _) -> x) iSets) (M.fromList support_map) minconf)
+                --obtain correlations
             mapM_ (debugCor) correlations
          _ -> do
             pn <- getProgName
             die $ "Usage: "++pn++" <filename> <minsup> <minconf>"
 
-
-debugFreqItems :: ([Text], Int) -> IO()
-debugFreqItems (t1, freq) = putStrLn ((show t1) ++ " " ++ (show freq))
-
-debugCor :: ([Text], [Text], Double) -> IO()
-debugCor (t1, t2, conf) = putStrLn ((show t1) ++ " " ++ (show t2) ++ " " ++ (show conf))
-
--- debugL2 :: ([Text]) -> IO()
--- debugL2 xs = putStrLn (show xs)
-
-debugL1 :: ([Text], Int) -> IO()
-debugL1 xs = putStrLn (show xs)
+---HELPER DATA PREPROCESSING FNS---
+printCor :: ([Text], [Text], Double) -> IO()
+printCor (t1, t2, conf) = putStrLn ((show t1) ++ " " ++ (show t2) ++ " " ++ (show conf))
 
 preprocess :: [Text] -> [[Text]]
 preprocess [] = []
 preprocess (x:xs) = (T.splitOn (T.pack ",") x) : (preprocess xs)
 
+
+---SUPPORT MAP CONSTRUCTION---
 getSup :: Int -> Int -> Double
 getSup cnt datalen = (fromIntegral cnt) / (fromIntegral datalen)
 
 getSupportMap :: [([Text], Int)] -> Int -> [([Text], Double)]
 getSupportMap isets datalen = Prelude.map (\(x, cnt) -> (x, (getSup cnt datalen))) isets
 
-{--itemsets takes (L_items[k-1], items, and should return = support_map --}
+
+---ITEM SET CONSTRUCTION---
 itemSets :: [([Text], Int)] -> [[Text]] -> Int -> Double -> [([Text], Int)]
 itemSets [] _ _ _ = []
 itemSets prev_L_items items datalen minsup = prev_L_items ++ (itemSets l_items items datalen minsup)
     where
         c_items = aprioriGenPar prev_L_items
-        l_items = Prelude.filter (\(_, cnt) -> (getSup cnt datalen) >= minsup) (prunePar (c_items) items)
+        l_items = Prelude.filter (\(_, cnt) -> (getSup cnt datalen) >= minsup) (prune (c_items) items)
 
+
+--  PRUNING    --
 prune :: [[Text]] -> [[Text]] -> [([Text], Int)]
 prune [] [] = []
 prune citems baskets = Prelude.map (\item -> (item, supCount item baskets)) citems
@@ -78,37 +74,26 @@ supCount item (basket:xs)
     | (Prelude.all (`Prelude.elem` basket) item) = 1 + (supCount item xs)
     | otherwise = supCount item xs
 
-aprioriGen :: [([Text], Int)] -> [[Text]]
-aprioriGen items = removeDups ([L.sort (p ++ [(L.last q)]) | p <- prev_L_items, q <- prev_L_items, L.take (L.length p - 1) p == L.take (L.length q - 1) q, (L.last p) /= (L.last q)])
-                  where prev_L_items = Prelude.map (\(x, _) -> x) items
+
+-- CANDIDATE GENERATION ---
 
 removeDups :: [[Text]] -> [[Text]]
 removeDups xs = S.toList(S.fromList(xs))
 
 aprioriGenPar :: [([Text], Int)] -> [[Text]]
-aprioriGenPar items = removeDups (runEval $ parList (rseq) [L.sort (p ++ [(L.last q)]) | p <- prev_L_items, q <- prev_L_items, L.take (L.length p - 1) p == L.take (L.length q - 1) q, (L.last p) /= (L.last q)])
-                  where prev_L_items = Prelude.map (\(x, _) -> x) items
+aprioriGenPar items = removeDups (Prelude.concat((parMap rpar (\x -> (createCand x prev_L_items)) prev_L_items)))
+                    where prev_L_items = Prelude.map (\(x, _) -> x) items
 
-{--
-inp = [[T.pack "a", T.pack "b", T.pack "c", T.pack "d"], [T.pack "a", T.pack "b", T.pack "c", T.pack "d", T.pack "e"]]
-support_map = fromList [([T.pack "a"], 1), ([T.pack "a", T.pack "b"], 2), 
-                        ([T.pack "a", T.pack "b", T.pack "c"], 3),  
-                        ([T.pack "a", T.pack "b", T.pack "c", T.pack "d"], 3), 
-                        ([T.pack "a", T.pack "b", T.pack "c", T.pack "d", T.pack "e"], 3)]
-minconf = fromIntegral 0
+aprioriGen :: [([Text], Int)] -> [[Text]]
+aprioriGen items = removeDups (Prelude.concat((Prelude.map (\x -> (createCand x prev_L_items)) prev_L_items)))
+                    where prev_L_items = Prelude.map (\(x, _) -> x) items
 
-do
-    hi <- Maybe hi
---}
+createCand :: [Text] -> [[Text]] -> [[Text]]
+createCand p prev_L_items = [L.sort (p ++ [(L.last q)]) | q <- prev_L_items, L.take (L.length p - 1) p == L.take (L.length q - 1) q, (L.last p) /= (L.last q)]
 
-{--
-lfs = [T.pack "a"]
-rhs = [T.pack "b", T.pack "c", T.pack "d"]
-support_map = fromList [([T.pack "a"], 1), ([T.pack "a", T.pack "b"], 2), ([T.pack "a", T.pack "b", T.pack "c"], 3)]
-support_map_empty = fromList []
-num = 4
-minconf = fromIntegral 0
---}
+
+-- CONFIDENCE RELATIONS MINING ---
+
 sortedConfidence :: [([Text], [Text], Double)] -> [([Text], [Text], Double)]
 sortedConfidence xs = (sortBy (\(_, _, a) (_, _, b) -> compare b a) xs)
 
