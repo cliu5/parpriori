@@ -83,7 +83,7 @@ itemSetsPar prev_L_items items datalen minsup = prev_L_items ++ (itemSetsPar l_i
         c_items = aprioriGenPar prev_L_items
         l_items = Prelude.filter (\(_, cnt) -> (getSup cnt datalen) >= minsup) (prunePar (c_items) items)  
 
---  PRUNING    --
+--PRUNING--
 prune :: [[Text]] -> [[Text]] -> [([Text], Int)]
 prune [] [] = []
 prune citems baskets = Prelude.map (\item -> (item, supCount item baskets)) citems
@@ -99,7 +99,7 @@ supCount item (basket:xs)
     | otherwise = supCount item xs
 
 
--- CANDIDATE GENERATION ---
+--CANDIDATE GENERATION---
 
 removeDups :: [[Text]] -> [[Text]]
 removeDups xs = S.toList(S.fromList(xs))
@@ -116,7 +116,7 @@ createCand :: [Text] -> [[Text]] -> [[Text]]
 createCand p prev_L_items = [L.sort (p ++ [(L.last q)]) | q <- prev_L_items, L.take (L.length p - 1) p == L.take (L.length q - 1) q, (L.last p) /= (L.last q)]
 
 
--- CONFIDENCE RELATIONS MINING ---
+--CONFIDENCE RELATIONS MINING---
 
 sortedConfidence :: [([Text], [Text], Double)] -> [([Text], [Text], Double)]
 sortedConfidence xs = (sortBy (\(_, _, a) (_, _, b) -> compare b a) xs)
