@@ -1,3 +1,4 @@
-# pfp-proj
+# parpriori
 
-To run: cabal run parpriori test.txt 0 0 +RTS -ls        
+A parallelized impelmentation in Haskell of the apriori algorithm for mining frequent item sets and association rules.
+
